@@ -25,6 +25,8 @@ class Table:
     def forEach(self, callback):
         for i, v in self.__data.items():
             callback(i, v);
+    def __repr__(self):
+        return f"Table{self.__data}";
 
 class Database(Table):
     def addTable(self, name):
