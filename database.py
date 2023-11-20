@@ -1,29 +1,34 @@
-# try wrapping the code below that reads a persons.csv file in a class and make it more general such that it can read in any csv file
+class CsvFile:
+    def __init__(self, path):
+        self.path = path;
+    def read(self, callback):
+        import csv
+        with open(self.path) as file:
+            rows = csv.DictReader(file)
+            for row in rows:
+                callback(dict(row));
 
-import csv
-
-def readCsv(path, objType, callback):
-    with open(path) as f:
-        rows = csv.DictReader(f)
-        for r in rows:
-            obj = objType()
-            for i, v in r.items():
-                setattr(obj, i, v);
-            callback(obj);
-
-
-
-# add in code for a Database class
-class Database:
+class Database(Table):
+    def __init__(self, name):
+        self.__name = name
+    @property
+    def name(self):
+        return self.__name;
+    def addTable(self, name):
+        self.__data[name] = Table()
+        return self
+    
+class Table:
     def __init__(self):
-        self.data = {};
+        self.__data = {};
+    def getData(self):
+        return self.__data;
     def get(self, key, default=None):
-        return self.data.get(key, default);
+        return self.__data.get(key, default);
     def put(self, key, val):
-        self.data[key] = val;
+        self.__data[key] = val;
+    def fromCsv(self, key, csvFile):
+        csvFile.read(lambda val: self.__data.update({key: val}));
     def forEach(self, callback):
-        for i, v in self.data.items():
+        for i, v in self.__data.items():
             callback(i, v);
-# add in code for a Table class
-
-# modify the code in the Table class so that it supports the insert operation where an entry can be added to a list of dictionary

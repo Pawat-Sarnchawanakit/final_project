@@ -1,11 +1,16 @@
-import database, secrets;
+from database import Database, CsvFile;
 from hashlib import sha256
-mainDatabase = database.Database();
-peopleDatabase = database.Database();
-mainDatabase.put("people", peopleDatabase);
-loginDatabase = database.Database();
-mainDatabase.put("login", loginDatabase);
+mainDatabase = Database() \
+                    .addTable("people") \
+                    .addTable("login") \
+                    .addTable("projects") \
+                    .addTable("documents");
+mainDatabase.get("people").fromCsv(CsvFile("./persons.csv"));
 
+# Initalize login table
+def initLoginTable():
+    loginTable = mainDatabase.get("login");
+    mainDatabase.get("people").forEach(lambda entry: loginTable.set(entry.));
 class Person:
     def __init__(self):
         pass
@@ -22,19 +27,16 @@ class Roles:
     def toString(role):
         return ["Member", "Lead", "Faculty", "Advisor", "Admin"][role];
 
-abw = ''.join([chr(32+secrets.randbelow(95)) for _ in range(4)]);
-print(abw)
-database.readCsv("./persons.csv", Person, lambda personData: peopleDatabase.put(personData.ID, personData));
-peopleDatabase.forEach(lambda id, person: loginDatabase.put(f"{person.fist}.{person.last}", LoginEntry(id, sha256((abw+"42069").encode()).digest(), {'admin': Roles.Admin, 'student': Roles.Member, 'faculty': Roles.Faculty}[person.type])))
+database.CsvReader("./persons.csv").read(Person, lambda personData: peopleDatabase.put(personData.ID, personData));
+# peopleDatabase.forEach(lambda id, person: loginDatabase.put(f"{person.fist}.{person.last}", LoginEntry(id, sha256((abw+"42069").encode()).digest(), {'admin': Roles.Admin, 'student': Roles.Member, 'faculty': Roles.Faculty}[person.type])))
 
-def login():
-    username = input("Username: ")
+while True:
+    username = input("Please login ;)\nUsername: ")
     password = sha256((input("Password: ")+"42069").encode()).digest()
     entry = loginDatabase.get(username);
     if entry == None or entry.password != password:
-        return;
-    print(entry.person_id, Roles.toString(entry.role))
-login()
+        print("Invalid credentials!\nAnd no one has valid credentials cuz only admins can add login table.\nHowever admins can't even login cuz the login table is literally empty.")
+        continue;
     #entry.password
 # start by adding the admin related code
 
