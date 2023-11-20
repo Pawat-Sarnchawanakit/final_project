@@ -141,6 +141,52 @@ class ManageApp:
                     reqs.pop();
             except:
                 pass
+    def allProjectsPanel(self, data):
+        for cmd in iter(lambda: input(
+            "What do you want to do?\n" \
+            "0. Go back\n" \
+            "1. View all projects\n" \
+            "2. Be an advisor for a project\n" \
+            "3. Approve a project\n" \
+            "4. View project info\n\nChoose: " \
+            ), '0'):
+            if cmd == '1':
+                items = self.projectsTable.getData().items();
+                if not items:
+                    print("There are no projects.")
+                    continue;
+                for i, v in items:
+                    print(i, v);
+                continue;
+            if cmd == '2':
+                project = self.projectsTable.get(input("Enter project id: "))
+                if project == None:
+                    print("Invalid project id.")
+                    continue;
+                curAdvisor = project["advisor"];
+                if curAdvisor != None and input(
+                    "There is already an advisor for this project.\n" \
+                    "Do you want to overwrite this? (y/n) "
+                    ) != 'y':
+                    continue;
+                curAdvisor = {
+                    "name": f"{data['first']} {data['last']}",
+                    "id": data["ID"]
+                };
+                project["advisor"] = curAdvisor;
+                continue;
+            if cmd == '3':
+                project = self.projectsTable.get(input("Enter project id: "))
+                if project == None:
+                    print("Invalid project id.")
+                    continue;
+                project["approved"] = True;
+            if cmd == '4':
+                project = self.projectsTable.get(input("Enter project id: "))
+                if project == None:
+                    print("Invalid project id.")
+                    continue;
+                print(project)
     def facultyPanel(self, data):
         for cmd in iter(lambda: input(
             "What do you want to do?\n" \
@@ -152,7 +198,7 @@ class ManageApp:
                 self.requestsPanel(data);
                 continue;
             if cmd == '2':
-                self.projectsPanel();
+                self.allProjectsPanel(data);
                 continue;
     def run(self):
         while True:
