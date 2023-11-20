@@ -8,16 +8,6 @@ class CsvFile:
             for row in rows:
                 callback(dict(row));
 
-class Database(Table):
-    def __init__(self, name):
-        self.__name = name
-    @property
-    def name(self):
-        return self.__name;
-    def addTable(self, name):
-        newTable = Table();
-        self.__data[name] = newTable
-        return newTable
     
 class Table:
     def __init__(self):
@@ -31,7 +21,13 @@ class Table:
     def delete(self, key):
         del self.__data[key];
     def fromCsv(self, key, csvFile):
-        csvFile.read(lambda val: self.__data.update({key: val}));
+        csvFile.read(lambda val: self.__data.update({val[key]: val}));
     def forEach(self, callback):
         for i, v in self.__data.items():
             callback(i, v);
+
+class Database(Table):
+    def addTable(self, name):
+        newTable = Table();
+        self.put(name, newTable)
+        return newTable
