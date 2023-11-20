@@ -1,24 +1,7 @@
 from database import Database, CsvFile;
 from hashlib import sha256
-mainDatabase = Database() \
-                    .addTable("people") \
-                    .addTable("login") \
-                    .addTable("projects") \
-                    .addTable("documents");
-mainDatabase.get("people").fromCsv(CsvFile("./persons.csv"));
-
-# Initalize login table
-def initLoginTable():
-    loginTable = mainDatabase.get("login");
-    mainDatabase.get("people").forEach(lambda entry: loginTable.set(entry.));
-class Person:
-    def __init__(self):
-        pass
-class LoginEntry:
-    def __init__(self, person_id, password, role):
-        self.person_id, self.password, self.role = person_id, password, role;
-
-class Roles:
+import secrets, json
+class Role:
     Member = 0
     Lead = 1
     Faculty = 2
@@ -27,42 +10,88 @@ class Roles:
     def toString(role):
         return ["Member", "Lead", "Faculty", "Advisor", "Admin"][role];
 
-database.CsvReader("./persons.csv").read(Person, lambda personData: peopleDatabase.put(personData.ID, personData));
-# peopleDatabase.forEach(lambda id, person: loginDatabase.put(f"{person.fist}.{person.last}", LoginEntry(id, sha256((abw+"42069").encode()).digest(), {'admin': Roles.Admin, 'student': Roles.Member, 'faculty': Roles.Faculty}[person.type])))
+class ManageApp:
+    def __init__(self):
+        self.mainDatabase = Database();
+        self.peopleTable = self.mainDatabase.addTable("people");
+        self.peopleTable.fromCsv("ID", CsvFile("./persons.csv"));
+        self.loginTable = self.mainDatabase.addTable("login");
+        self.peopleTable.forEach(lambda id, entry: self.loginTable.put(f"{entry['first']}.{entry['last'][0]}", {
+            "person_id": id,
+            "username": f"{entry['first']}.{entry['last'][0]}",
+            "password": sha256((''.join(chr(0x20) for _ in range(4)) +"42069").encode()).digest(), # + secrets.randbelow(95)
+            "role": {
+                "student": Role.Member,
+                "faculty": Role.Faculty,
+                "admin": Role.Admin,
+            }[entry["type"]]
+        }));
+        self.projectsTable = self.mainDatabase.addTable("projects");
+        self.documentsTable = self.mainDatabase.addTable("documents");
+    def login(self):
+        username = input("Please login\nUsername: ");
+        password = sha256((input("Password: ")+"42069").encode()).digest();
+        loginEntry = self.loginTable.get(username);
+        if loginEntry == None:
+            return;
+        if loginEntry["password"] != password:
+            return;
+        return loginEntry;
+    def adminPanel(self):
+        cur = self.mainDatabase;
+        curStr = '/'
+        for cmd in iter(lambda: input("$ "), "exit"):
+            if cmd == "ls":
+                print(cur.getData());
+                continue;
+            if cmd == "cd":
+                toCdInto = cur.get(input("Enter key: "));
+                if toCdInto == None:
+                    print("Entry doesn't exist.")
+                    continue;
+                curStr += f"{toCdInto}/";
+                cur = toCdInto;
+                continue;
+            if cmd == "home":
+                cur = self.mainDatabase;
+                continue;
+            if cmd == "set":
+                try:
+                    cur.put(input("Enter key: "), json.loads(input("Enter value: ")))
+                except:
+                    print("Bad value.");
+                continue;
+            if cmd == "get":
+                entry = cur.get(input("Enter key: "))
+                if entry == None:
+                    print("Invalid key.")
+                    continue;
+                try:
+                    print(json.dumps(key))
+                except:
+                    print(entry);
+                continue;
+            if cmd == "delete":
+                cur.delete(input("Enter key: "))
+                continue;
+            if cmd == "help":
+                print(
+                    "ls - list all entries\n" \
+                    "cd - change current table / database\n" \
+                    "home - goes back to root database\n"
+                    "set - set an entry\n"
+                    "get - get an entry\n"
+                    "delete - deletes an entry\n"
+                    "help - display this"
+                    )
+                continue;
+            print("Unknown command!\nType \"help\" for a list of commands.")
+    def run(self):
+        while True:
+            info = self.login();
+            if info == None:
+                print("Invalid credentials, please try again.");
+                continue;
+            [lambda: None, lambda: None, lambda: None, lambda: None, self.adminPanel][info["role"]]();
 
-while True:
-    username = input("Please login ;)\nUsername: ")
-    password = sha256((input("Password: ")+"42069").encode()).digest()
-    entry = loginDatabase.get(username);
-    if entry == None or entry.password != password:
-        print("Invalid credentials!\nAnd no one has valid credentials cuz only admins can add login table.\nHowever admins can't even login cuz the login table is literally empty.")
-        continue;
-    #entry.password
-# start by adding the admin related code
-
-# create an object to read an input csv file, persons.csv
-
-# create a 'persons' table
-
-# add the 'persons' table into the database
-
-# create a 'login' table
-
-# the 'login' table has the following keys (attributes):
-
-# person_id
-# username
-# password
-# role
-
-# a person_id is the same as that in the 'persons' table
-# let a username be a person's fisrt name followed by a dot and the first letter of that person's last name
-# let a password be a random four digits string
-# let the initial role of all the students be Member
-# let the initial role of all the faculties be Faculty
-
-# you create a login table by performing a series of insert operations; each insert adds a dictionary to a list
-
-# add the 'login' table into the database
-
-# add code that performs a login task; asking a user for a username and password; returning [person_id, role] if valid, otherwise returning None
+ManageApp().run();
