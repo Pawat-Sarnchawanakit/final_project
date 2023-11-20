@@ -19,7 +19,7 @@ class ManageApp:
         self.peopleTable.forEach(lambda id, entry: self.loginTable.put(f"{entry['first']}.{entry['last'][0]}", {
             "person_id": id,
             "username": f"{entry['first']}.{entry['last'][0]}",
-            "password": sha256((''.join(chr(0x20) for _ in range(4)) +"42069").encode()).digest(), # + secrets.randbelow(95)
+            "password": (lambda passwd, salt: salt + sha256((passwd+salt).encode()).hexdigest())(''.join(chr(0x20) for _ in range(4)), ''.join(chr(0x20 + secrets.randbelow(95)) for _ in range(4))), # + secrets.randbelow(95)
             "role": {
                 "student": Role.Member,
                 "faculty": Role.Faculty,
@@ -30,14 +30,15 @@ class ManageApp:
         self.documentsTable = self.mainDatabase.addTable("documents");
     def login(self):
         username = input("Please login\nUsername: ");
-        password = sha256((input("Password: ")+"42069").encode()).digest();
+        password = input("Password: ");
         loginEntry = self.loginTable.get(username);
         if loginEntry == None:
             return;
-        if loginEntry["password"] != password:
+        password = sha256((password+loginEntry["password"][0:4]).encode()).hexdigest();
+        if loginEntry["password"][4:] != password:
             return;
         return loginEntry;
-    def adminPanel(self):
+    def adminPanel(self,_=None):
         cur = self.mainDatabase;
         curStr = '/'
         for cmd in iter(lambda: input("$ "), "exit"):
@@ -67,7 +68,7 @@ class ManageApp:
                     print("Invalid key.")
                     continue;
                 try:
-                    print(json.dumps(key))
+                    print(json.dumps(entry))
                 except:
                     print(entry);
                 continue;
@@ -86,12 +87,79 @@ class ManageApp:
                     )
                 continue;
             print("Unknown command!\nType \"help\" for a list of commands.")
+    def sendMsg(self, data, targetId):
+        targetData = self.peopleTable.get(targetId)
+        reqs = targetData.get("requests");
+        if reqs == None:
+            reqs = [];
+            targetData["requests"] = reqs;
+        reqs.append({
+            "title": input("Enter title: "),
+            "content": input("Enter message: "),
+            "sender": {
+                "name": f"{data['first']} {data['last']}",
+                "id": data["ID"]
+            }
+        })
+    def requestPanel(self, data, req):
+        print(f"Title: {req['title']}\n\n{req['content']}")
+        for cmd in iter(lambda: input(
+            "0. Go back\n"
+            "1. Reply\n"
+            "2. Reply and delete\n"
+            "3. Delete\nChoose: "), "0"):
+            if cmd == '1':
+                self.sendMsg(data, req['sender']['id'])
+                continue;
+            if cmd == '2':
+                self.sendMsg(data, req['sender']['id'])
+                return True;
+                continue;
+            if cmd == '3':
+                return True;
+    def requestsPanel(self, data):
+        reqs = data.get("requests", []);
+        while True:
+            if not reqs:
+                print("There are no requests at the moment.")
+                return;
+            print("List of requests: ")
+            idx = 0;
+            for req in reqs:
+                print(f"{idx}. {req['title']} - {req['sender']['name']}");
+                idx += 1;
+            cmd = input("Choose a request you want to view, type \"exit\" to exit.\nRequest: ");
+            if cmd == "exit":
+                break;
+            try:
+                idx = int(cmd);
+                if idx >= len(reqs):
+                    print("Index out of bounds.")
+                    continue;
+                if self.requestPanel(data, req):
+                    reqs[idx] = reqs[::-1][0];
+                    reqs.pop();
+            except:
+                pass
+    def facultyPanel(self, data):
+        for cmd in iter(lambda: input(
+            "What do you want to do?\n" \
+            "0. Exit\n" \
+            "1. View requests to be a supervisor\n" \
+            "2. View projects\n\nChoose: " \
+            ), '0'):
+            if cmd == '1':
+                self.requestsPanel(data);
+                continue;
+            if cmd == '2':
+                self.projectsPanel();
+                continue;
     def run(self):
         while True:
             info = self.login();
             if info == None:
                 print("Invalid credentials, please try again.");
                 continue;
-            [lambda: None, lambda: None, lambda: None, lambda: None, self.adminPanel][info["role"]]();
+            [lambda: None, lambda: None, self.facultyPanel, self.facultyPanel, self.adminPanel][info["role"]](self.peopleTable.get(info["person_id"]));
 
 ManageApp().run();
