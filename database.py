@@ -15,8 +15,9 @@ class Database(Table):
     def name(self):
         return self.__name;
     def addTable(self, name):
-        self.__data[name] = Table()
-        return self
+        newTable = Table();
+        self.__data[name] = newTable
+        return newTable
     
 class Table:
     def __init__(self):
@@ -27,6 +28,8 @@ class Table:
         return self.__data.get(key, default);
     def put(self, key, val):
         self.__data[key] = val;
+    def delete(self, key):
+        del self.__data[key];
     def fromCsv(self, key, csvFile):
         csvFile.read(lambda val: self.__data.update({key: val}));
     def forEach(self, callback):
