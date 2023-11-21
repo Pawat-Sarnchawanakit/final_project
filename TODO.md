@@ -1,3 +1,8 @@
+# Todo
+- Use asymetric crypto for tokens.  
+- Allow for easy accepting request directly in the message menu.  
+- Allow embedding report file instead of text.  
+- Saving databse.  
 # What's done?
  - What each role does (kinda)
 # Usage
