@@ -1,7 +1,7 @@
-from database import Database, CsvFile
 from hashlib import sha256
-import secrets, json
-
+import secrets
+import json
+from database import Database, CsvFile
 
 class Role:
     Member = 0
@@ -10,18 +10,15 @@ class Role:
     Advisor = 3
     Admin = 4
 
-    def toString(role):
-        return ["Member", "Lead", "Faculty", "Advisor", "Admin"][role]
-
 
 class ManageApp:
 
     def __init__(self):
-        self.mainDatabase = Database()
-        self.peopleTable = self.mainDatabase.addTable("people")
-        self.peopleTable.fromCsv("ID", CsvFile("./persons.csv"))
-        self.loginTable = self.mainDatabase.addTable("login")
-        self.peopleTable.forEach(lambda id, entry: self.loginTable.put(
+        self.main_database = Database()
+        self.people_table = self.main_database.add_table("people")
+        self.people_table.fromCsv("ID", CsvFile("./persons.csv"))
+        self.login_table = self.main_database.add_table("login")
+        self.people_table.forEach(lambda id, entry: self.login_table.put(
             f"{entry['first']}.{entry['last'][0]}",
             {
                 "person_id":
@@ -39,14 +36,14 @@ class ManageApp:
                     "admin": Role.Admin,
                 }[entry["type"]]
             }))
-        self.projectsTable = self.mainDatabase.addTable("projects")
-        self.documentsTable = self.mainDatabase.addTable("documents")
+        self.projectsTable = self.main_database.add_table("projects")
+        self.documentsTable = self.main_database.add_table("documents")
 
     def login(self):
         username = input("Please login\nUsername: ")
         password = input("Password: ")
-        loginEntry = self.loginTable.get(username)
-        if loginEntry == None:
+        loginEntry = self.login_table.get(username)
+        if loginEntry is None:
             return
         password = sha256(
             (password + loginEntry["password"][0:4]).encode()).hexdigest()
@@ -54,8 +51,8 @@ class ManageApp:
             return
         return loginEntry
 
-    def adminPanel(self, _=None):
-        cur = self.mainDatabase
+    def admin_panel(self, _=None):
+        cur = self.main_database
         curStr = '/'
         for cmd in iter(lambda: input("$ "), "exit"):
             if cmd == "ls":
@@ -63,14 +60,14 @@ class ManageApp:
                 continue
             if cmd == "cd":
                 toCdInto = cur.get(input("Enter key: "))
-                if toCdInto == None:
+                if toCdInto is None:
                     print("Entry doesn't exist.")
                     continue
                 curStr += f"{toCdInto}/"
                 cur = toCdInto
                 continue
             if cmd == "home":
-                cur = self.mainDatabase
+                cur = self.main_database
                 continue
             if cmd == "set":
                 try:
@@ -81,7 +78,7 @@ class ManageApp:
                 continue
             if cmd == "get":
                 entry = cur.get(input("Enter key: "))
-                if entry == None:
+                if entry is None:
                     print("Invalid key.")
                     continue
                 try:
@@ -105,10 +102,10 @@ class ManageApp:
                 continue
             print("Unknown command!\nType \"help\" for a list of commands.")
 
-    def sendMsg(self, data, targetId):
-        targetData = self.peopleTable.get(targetId)
+    def send_msg(self, data, target_id):
+        targetData = self.people_table.get(target_id)
         reqs = targetData.get("requests")
-        if reqs == None:
+        if reqs is None:
             reqs = []
             targetData["requests"] = reqs
         reqs.append({
@@ -128,16 +125,16 @@ class ManageApp:
                               "2. Reply and delete\n"
                               "3. Delete\nChoose: "), "0"):
             if cmd == '1':
-                self.sendMsg(data, req['sender']['id'])
+                self.send_msg(data, req['sender']['id'])
                 continue
             if cmd == '2':
-                self.sendMsg(data, req['sender']['id'])
+                self.send_msg(data, req['sender']['id'])
                 return True
                 continue
             if cmd == '3':
                 return True
 
-    def requestsPanel(self, data):
+    def requests_panel(self, data):
         reqs = data.get("requests", [])
         while True:
             if not reqs:
@@ -183,11 +180,11 @@ class ManageApp:
                 continue
             if cmd == '2':
                 project = self.projectsTable.get(input("Enter project id: "))
-                if project == None:
+                if project is None:
                     print("Invalid project id.")
                     continue
                 curAdvisor = project["advisor"]
-                if curAdvisor != None and input(
+                if curAdvisor is not None and input(
                     "There is already an advisor for this project.\n" \
                     "Do you want to overwrite this? (y/n) "
                     ) != 'y':
@@ -205,7 +202,7 @@ class ManageApp:
                 continue
             if cmd == '3':
                 project = self.projectsTable.get(input("Enter project id: "))
-                if project == None:
+                if project is None:
                     print("Invalid project id.")
                     continue
                 if sha256(proj["secret"] + "APR" +
@@ -216,7 +213,7 @@ class ManageApp:
                 project["approved"] = True
             if cmd == '4':
                 project = self.projectsTable.get(input("Enter project id: "))
-                if project == None:
+                if project is None:
                     print("Invalid project id.")
                     continue
                 print(project)
@@ -229,7 +226,7 @@ class ManageApp:
             "2. View projects\n\nChoose: " \
             ), '0'):
             if cmd == '1':
-                self.requestsPanel(data)
+                self.requests_panel(data)
                 continue
             if cmd == '2':
                 self.allProjectsPanel(data)
@@ -238,7 +235,7 @@ class ManageApp:
     def getUniqueProjectId(self):
         while True:
             id = secrets.token_hex(16)
-            if self.projectsTable.get(id) != None:
+            if self.projectsTable.get(id) is not None:
                 return id
 
     def manageProjectPanel(self, data, proj):
@@ -259,34 +256,35 @@ class ManageApp:
                 continue
             if inp in {'3', '4'}:
                 nameOrId = input("Enter target username or id: ")
-                tarData = self.peopleTable.get(nameOrId)
-                if tarData == None:
-                    tarLoginData = self.loginTable.get(nameOrId)
-                    if tarLoginData == None:
+                tarData = self.people_table.get(nameOrId)
+                if tarData is None:
+                    tarLoginData = self.login_table.get(nameOrId)
+                    if tarLoginData is None:
                         print("Invalid username or id.")
                         continue
-                    tarData = self.peopleTable.get(tarLoginData["person_id"])
-                targetId = tarData["ID"]
+                    tarData = self.people_table.get(tarLoginData["person_id"])
+                target_id = tarData["ID"]
                 token = sha256(proj["secret"] + {
                     '3': "INV",
                     '4': "ADV"
-                }[inp] + targetId).hexdigest()[0:5]
+                }[inp] + target_id).hexdigest()[0:5]
                 print(
-                    f"The token has been generated: {token}\nDo not forget to include this in your request!"
+                    f"The token has been generated: {token}\n"
+                    "Do not forget to include this in your request!"
                 )
-                self.sendMsg(data, targetId)
+                self.send_msg(data, target_id)
                 continue
             if inp == '5':
                 advisor = proj.get("advisor")
-                if advisor == None:
+                if advisor is None:
                     print("You don't have an advisor.")
                     continue
                 proj["report"] = input("Enter report: ")
                 token = sha256(proj["secret"] + "APR" +
-                               targetId).hexdigest()[0:5]
-                targetData = self.peopleTable.get(advisor["id"])
+                               target_id).hexdigest()[0:5]
+                targetData = self.people_table.get(advisor["id"])
                 reqs = targetData.get("requests")
-                if reqs == None:
+                if reqs is None:
                     reqs = []
                     targetData["requests"] = reqs
                 reqs.append({
@@ -311,7 +309,7 @@ class ManageApp:
             ), '0'):
             if cmd == '1':
                 projs = data.get("projects")
-                if projs == None:
+                if projs is None:
                     projs = []
                     data["projects"] = projs
                 projId = self.getUniqueProjectId()
@@ -332,17 +330,17 @@ class ManageApp:
                 projs.append(newProj)
                 continue
             if cmd == '2':
-                for v in self.loginTable.getData().values():
+                for v in self.login_table.getData().values():
                     if v["role"] != Role.Member:
                         continue
                     print(v["username"], v["person_id"])
                 continue
             if cmd == '3':
-                self.sendMsg(data, input("Enter target id: "))
+                self.send_msg(data, input("Enter target id: "))
                 continue
             if cmd == '4':
                 projs = data.get("projects")
-                if projs == None:
+                if projs is None:
                     print("You dont have any projects.")
                     continue
                 while True:
@@ -372,7 +370,7 @@ class ManageApp:
                         except:
                             print("Invalid index")
                             continue
-                        self.manageProjectPanel(data, proj)
+                        self.manageProjectPanel(data, selProj)
                         selProj["name"] = input("New name: ")
                         continue
                 continue
@@ -386,12 +384,12 @@ class ManageApp:
             "3. View personal projects\n\nChoose: " \
             ), '0'):
             if cmd == '1':
-                self.requestsPanel(data)
+                self.requests_panel(data)
                 continue
             if cmd == '2':
                 projId = input("Enter project id: ")
                 proj = self.projectsTable.get(projId)
-                if proj == None:
+                if proj is None:
                     print("Invalid project id.")
                     continue
                 if sha256(proj["secret"] + "INV" +
@@ -400,14 +398,14 @@ class ManageApp:
                     print("Invalid token.")
                     continue
                 projs = data.get("projects")
-                if projs == None:
+                if projs is None:
                     projs = []
                     data["projects"] = projs
                 projs.append(proj)
                 continue
             if cmd == '3':
                 projs = data.get("projects")
-                if projs == None:
+                if projs is None:
                     print("You didn't join any projects.")
                     continue
                 idx = 0
@@ -428,13 +426,13 @@ class ManageApp:
     def run(self):
         while True:
             info = self.login()
-            if info == None:
+            if info is None:
                 print("Invalid credentials, please try again.")
                 continue
             [
                 self.memberPanel, self.leadPanel, self.facultyPanel,
-                self.facultyPanel, self.adminPanel
-            ][info["role"]](self.peopleTable.get(info["person_id"]))
+                self.facultyPanel, self.admin_panel
+            ][info["role"]](self.people_table.get(info["person_id"]))
 
 
 ManageApp().run()

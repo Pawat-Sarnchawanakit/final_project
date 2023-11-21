@@ -29,7 +29,7 @@ class Table:
         return f"Table{self.__data}";
 
 class Database(Table):
-    def addTable(self, name):
+    def add_table(self, name):
         newTable = Table();
         self.put(name, newTable)
         return newTable
