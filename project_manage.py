@@ -192,6 +192,9 @@ class ManageApp:
                     "Do you want to overwrite this? (y/n) "
                     ) != 'y':
                     continue
+                if sha256(proj["secret"] + "ADV" + data["ID"]).hexdigest()[0:5] != input("Enter token: "):
+                    print("Invalid token.")
+                    continue
                 curAdvisor = {
                     "name": f"{data['first']} {data['last']}",
                     "id": data["ID"]
@@ -202,6 +205,9 @@ class ManageApp:
                 project = self.projectsTable.get(input("Enter project id: "))
                 if project == None:
                     print("Invalid project id.")
+                    continue
+                if sha256(proj["secret"] + "APR" + data["ID"]).hexdigest()[0:5] != input("Enter token: "):
+                    print("Invalid token.")
                     continue
                 project["approved"] = True
             if cmd == '4':
@@ -230,7 +236,57 @@ class ManageApp:
             id = secrets.token_hex(16)
             if self.projectsTable.get(id) != None:
                 return id
-
+    def manageProjectPanel(self, data, proj):
+        for inp in iter(lambda: input(
+            "What do you want to do?\n" \
+            "0. Go back\n" \
+            "1. Edit name\n" \
+            "2. Edit descriptionn" \
+            "3. Invite member\n" \
+            "4. Request for advisor\n" \
+            "5. Submit report\n\nChoose: " \
+            ), '0'):
+            if inp == '1':
+                proj["name"] = input("Enter new name: ")
+                continue;
+            if inp == '2':
+                proj["desc"] = input("Enter new description: ")
+                continue;
+            if inp in {'3','4'}:
+                nameOrId = input("Enter target username or id: ")
+                tarData = self.peopleTable.get(nameOrId)
+                if tarData == None:
+                    tarLoginData = self.loginTable.get(nameOrId);
+                    if tarLoginData == None:
+                        print("Invalid username or id.")
+                        continue;
+                    tarData = self.peopleTable.get(tarLoginData["person_id"])
+                targetId = tarData["ID"];
+                token = sha256(proj["secret"] + {'3': "INV",'4': "ADV"}[inp] + targetId).hexdigest()[0:5]
+                print(f"The token has been generated: {token}\nDo not forget to include this in your request!")
+                self.sendMsg(data, targetId)
+                continue;
+            if inp == '5':
+                advisor = proj.get("advisor");
+                if advisor == None:
+                    print("You don't have an advisor.")
+                    continue;
+                proj["report"] = input("Enter report: ")
+                token = sha256(proj["secret"] + "APR" + targetId).hexdigest()[0:5]
+                targetData = self.peopleTable.get(advisor["id"])
+                reqs = targetData.get("requests")
+                if reqs == None:
+                    reqs = []
+                    targetData["requests"] = reqs
+                reqs.append({
+                    "title": f"Request for project approval for {proj['name']} {proj['id']}",
+                    "content": f"Token is {token}",
+                    "sender": {
+                        "name": f"{data['first']} {data['last']}",
+                        "id": data["ID"]
+                    }
+                })
+                continue;
     def leadPanel(self, data):
         for cmd in iter(lambda: input(
             "What do you want to do?\n" \
@@ -249,10 +305,11 @@ class ManageApp:
                 newProj = {
                     "name":
                     input("Enter project name: "),
-                    "description":
+                    "desc":
                     input("Enter description: "),
                     "id":
                     projId,
+                    "secret": secrets.token_hex(16),
                     "members": [{
                         "name": f"{data['first']} {data['last']}",
                         "id": data['ID']
@@ -264,10 +321,47 @@ class ManageApp:
                 for v in self.loginTable.getData().values():
                     if v["role"] != Role.Member:
                         continue;
-                    
+                    print(v["username"], v["person_id"])
                 continue;
             if cmd == '3':
                 self.sendMsg(data, input("Enter target id: "))
+                continue
+            if cmd == '4':
+                projs = data.get("projects")
+                if projs == None:
+                    print("You dont have any projects.")
+                    continue;
+                while True:
+                    idx = 0;
+                    for proj in projs:
+                        print(
+                            f"=====[Project {idx}]=====\n" \
+                            f"Project Name: {proj['name']}\n" \
+                            f"Project Description: {proj['desc']}\n" \
+                            f"Project Id: {proj['id']}\n" \
+                            f"Project Advisor: {proj.get('advisor')}\n"
+                            f"Project Leader: {proj['members'][0]}\n"
+                            f"Project Members: {proj['members'][1:]}\n"
+                            f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
+                        )
+                        idx += 1;
+                    inp = input(
+                        "0. Go back\n"
+                        "1. Manage project\n"
+                        "What do you want to do? ")
+                    if inp == '0':
+                        break;
+                    if inp == '1':
+                        selProj = None;
+                        try:
+                            curIdx = int(input("Project index: "))
+                            selProj = projs[curIdx];
+                        except:
+                            print("Invalid index");
+                            continue;
+                        self.manageProjectPanel(data, proj)
+                        selProj["name"] = input("New name: ")
+                        continue;
                 continue
 
     def run(self):
