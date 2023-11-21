@@ -27,9 +27,9 @@ class ManageApp:
                 f"{entry['first']}.{entry['last'][0]}",
                 "password": (lambda passwd, salt: salt + sha256(
                     (passwd + salt).encode()).hexdigest())
-                (''.join(chr(0x20) for _ in range(4)), ''.join(
+                (''.join(chr(0x20 + secrets.randbelow(95)) for _ in range(4)), ''.join(
                     chr(0x20 + secrets.randbelow(95))
-                    for _ in range(4))),  # + secrets.randbelow(95)
+                    for _ in range(4))),
                 "role": {
                     "student": Role.Member,
                     "faculty": Role.Faculty,
