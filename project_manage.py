@@ -24,24 +24,19 @@ class ManageApp:
         self.people_table = self.main_database.add_table("people")
         self.people_table.fromCsv("ID", CsvFile("./persons.csv"))
         self.login_table = self.main_database.add_table("login")
-        self.people_table.forEach(lambda id, entry: self.login_table.put(
-            f"{entry['first']}.{entry['last'][0]}",
-            {
-                "person_id":
-                id,
-                "username":
-                f"{entry['first']}.{entry['last'][0]}",
-                "password": (lambda passwd, salt: salt + sha256(
-                    (passwd + salt).encode()).hexdigest())
-                (''.join(chr(0x20 + secrets.randbelow(95)) for _ in range(4)), ''.join(
-                    chr(0x20 + secrets.randbelow(95))
-                    for _ in range(4))),
+        self.login_table.fromCsv("username", CsvFile("./login.csv"))
+        for key, val in self.login_table.getData().items():
+            salt = ''.join(chr(0x20 + secrets.randbelow(95)) for _ in range(4))
+            self.login_table.put(key, {
+                "id": val['ID'],
+                "username": val['username'],
+                "password": salt + sha256((val['password'] + salt).encode()).hexdigest(),
                 "role": {
                     "student": Role.Member,
                     "faculty": Role.Faculty,
                     "admin": Role.Admin,
-                }[entry["type"]]
-            }))
+                }[val["role"]]
+            })
         self.projectsTable = self.main_database.add_table("projects")
         self.documentsTable = self.main_database.add_table("documents")
 
@@ -56,58 +51,18 @@ class ManageApp:
         if loginEntry["password"][4:] != password:
             return
         return loginEntry
-
+    def login_prompt(self):
+        info = self.login()
+        if info is None:
+            print("Invalid credentials, please try again.")
+            return
+        [
+            self.memberPanel, self.leadPanel, self.facultyPanel,
+            self.facultyPanel, self.admin_panel
+        ][info["role"]](self.people_table.get(info["id"]))
     def admin_panel(self, _=None):
-        cur = self.main_database
-        curStr = '/'
-        for cmd in iter(lambda: input("$ "), "exit"):
-            if cmd == "ls":
-                print(cur.getData())
-                continue
-            if cmd == "cd":
-                toCdInto = cur.get(input("Enter key: "))
-                if toCdInto is None:
-                    print("Entry doesn't exist.")
-                    continue
-                curStr += f"{toCdInto}/"
-                cur = toCdInto
-                continue
-            if cmd == "home":
-                cur = self.main_database
-                continue
-            if cmd == "set":
-                try:
-                    cur.put(input("Enter key: "),
-                            json.loads(input("Enter value: ")))
-                except:
-                    print("Bad value.")
-                continue
-            if cmd == "get":
-                entry = cur.get(input("Enter key: "))
-                if entry is None:
-                    print("Invalid key.")
-                    continue
-                try:
-                    print(json.dumps(entry))
-                except:
-                    print(entry)
-                continue
-            if cmd == "delete":
-                cur.delete(input("Enter key: "))
-                continue
-            if cmd == "help":
-                print(
-                    "ls - list all entries\n" \
-                    "cd - change current table / database\n" \
-                    "home - goes back to root database\n"
-                    "set - set an entry\n"
-                    "get - get an entry\n"
-                    "delete - deletes an entry\n"
-                    "help - display this"
-                    )
-                continue
-            print("Unknown command!\nType \"help\" for a list of commands.")
-
+        AdminPanel(self, None, None).show();
+    
     def send_msg(self, data, target_id):
         targetData = self.people_table.get(target_id)
         reqs = targetData.get("requests")
@@ -270,7 +225,7 @@ class ManageApp:
                     if tarLoginData is None:
                         print("Invalid username or id.")
                         continue
-                    tarData = self.people_table.get(tarLoginData["person_id"])
+                    tarData = self.people_table.get(tarLoginData["id"])
                 target_id = tarData["ID"]
                 token = sha256(proj["secret"] + {
                     '3': "INV",
@@ -341,7 +296,7 @@ class ManageApp:
                 for v in self.login_table.getData().values():
                     if v["role"] != Role.Member:
                         continue
-                    print(v["username"], v["person_id"])
+                    print(v["username"], v["id"])
                 continue
             if cmd == '3':
                 self.send_msg(data, input("Enter target id: "))
@@ -440,17 +395,126 @@ class ManageApp:
     def save(self):
         self.main_database.save();
     def run(self):
-        while True:
-            if input("Type exit to `exit`, type `login` to login.\n>") == "exit":
-                break;
-            info = self.login()
-            if info is None:
-                print("Invalid credentials, please try again.")
-                continue
-            [
-                self.memberPanel, self.leadPanel, self.facultyPanel,
-                self.facultyPanel, self.admin_panel
-            ][info["role"]](self.people_table.get(info["person_id"]))
+        main_panel = Panel({
+            'exit': ("Type `exit` to exit", False),
+            'login': ("Type `login` to login", self.login_prompt)
+        }).show();
         return self;
-
+class Panel:
+    def __init__(self, actions, header="What do you want to do? ", footer="Choose: "):
+        self.__actions, self.__header, self.__footer = actions, header, footer;
+    def show(self):
+        while True:
+            print(self.__header)
+            for key, action in self.__actions.items():
+                print(f"{action[0]}")
+            inp = input(self.__footer)
+            action_info = self.__actions.get(inp)
+            if action_info == None:
+                print("Invalid choice.")
+                continue;
+            if action_info[1] == False:
+                break;
+            action_info[1]();
+# From Todo: (accept invitation directly)
+class Member:
+    def __init__(self, app, data, loginData):
+        self.app, self.data, self.loginData = app, data, loginData;
+    def show(self):
+        main_panel = Panel({
+            '1': ("1. Exit", False),
+            '2': ("2. View invitations", self.view_invitations),
+            '3': ("3. View joined projects", self.view_joined_projects),
+            '4': ("4. Become a lead", self.become_lead),
+        }).show();
+    def become_lead(self):
+        self.data["invitations"] = None;
+        self.loginData["role"] = Role.Lead
+        print("You've become a lead.\nLogout and log back in to access more features.")
+    def view_joined_projects(self):
+        projs = self.data.get("projects")
+        if projs is None:
+            print("You didn't join any projects.")
+            return
+        idx = 0
+        for projId in projs:
+            proj = self.app.projectsTable.get(projId)
+            print(
+                f"=====[Project {idx}]=====\n" \
+                f"Project Name: {proj['name']}\n" \
+                f"Project Description: {proj['desc']}\n" \
+                f"Project Id: {proj['id']}\n" \
+                f"Project Advisor: {proj.get('advisor')}\n"
+                f"Project Leader: {proj['members'][0]}\n"
+                f"Project Members: {proj['members'][1:]}\n"
+                f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
+            )
+            idx += 1
+    def view_invitations(self):
+        reqs = self.data.get("invitations", [])
+        while True:
+            if not reqs:
+                print("There are no invitations at the moment.")
+                return
+            print("List of invitations: ")
+            idx = 0
+            for req in reqs:
+                print(f"{idx}. {req['sender']} invited you to join project {req['project_name']} ({req['project_id']})")
+                idx += 1
+            cmd = input(
+                "Choose a request you want to accept, type \"exit\" to go back.\nRequest: "
+            )
+            if cmd == "exit":
+                break
+            try:
+                idx = int(cmd)
+                if idx >= len(reqs):
+                    print("Index out of bounds.")
+                    continue
+                projs = self.data.get("projects")
+                if projs is None:
+                    projs = []
+                    self.data["projects"] = projs
+                projs.append(reqs[idx]["project_id"])
+                reqs[idx] = reqs[::-1][0]
+                reqs.pop()
+            except:
+                pass
+class AdminPanel:
+    def __init__(self, app, data, loginData):
+        self.data, self.loginData, self.cur, self.cur_str, self.app = data, loginData, app.main_database, '/', app;
+    def show(self):
+        main_panel = Panel({
+            'exit': ("Type `exit` to exit", False),
+            'ls': ("Type `ls` to list everything under the current table.", lambda: print(self.cur.getData())),
+            'cd': ("Type `cd` to go down to a specific table.", self.cd),
+            'home': ("Type `home` to go back to the root database.", self.home),
+            'set': ("Type `set` to set an entry in the table.", self.on_set),
+            'get': ("Type `get` to get an entry in the table.", self.on_get),
+            'delete': ("Type `delete` to delete an entry in the table.", lambda: self.cur.delete(input("Enter key: "))),
+        }).show();
+    def home(self):
+        self.cur = self.app.main_database
+    def cd(self):
+        to_cd_into = self.cur.get(input("Enter key: "))
+        if to_cd_into is None:
+            print("Entry doesn't exist.")
+            return
+        self.cur_str += f"{to_cd_into}/"
+        self.cur = to_cd_into
+    def on_set(self):
+        try:
+            self.cur.put(input("Enter key: "),
+                    json.loads(input("Enter value: ")))
+        except:
+            print("Bad value.")
+    def on_get(self):
+        entry = self.cur.get(input("Enter key: "))
+        if entry is None:
+            print("Invalid key.")
+            return
+        try:
+            print(json.dumps(entry))
+        except:
+            print(entry)
 ManageApp().run().save();

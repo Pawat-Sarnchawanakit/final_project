@@ -4,9 +4,6 @@
 First you have to login using your username which is first name followed by a '.' and the first letter of your last name (case sensitive)  
 After you login you will be directed to different menus based on your roles:  
 ## Admins
-Admins will be directed to a shell-like menu.  
-From there you can view the list of commands using `help`  
-
 You can list everything by using `ls` command.  
 Use `cd` to enter into different tables.  
 Use `home` to return to the root database.  
