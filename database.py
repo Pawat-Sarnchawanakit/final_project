@@ -1,3 +1,6 @@
+import io;
+import os;
+import pickle;
 class CsvFile:
     def __init__(self, path):
         self.path = path;
@@ -10,8 +13,8 @@ class CsvFile:
 
     
 class Table:
-    def __init__(self):
-        self.__data = {};
+    def __init__(self, dat=None):
+        self.__data = {} if dat is None else dat;
     def getData(self):
         return self.__data;
     def get(self, key, default=None):
@@ -33,3 +36,18 @@ class Database(Table):
         newTable = Table();
         self.put(name, newTable)
         return newTable
+    def load(self):
+        if not os.path.exists("./database"):
+            return False
+        for file_name in os.listdir("./database"):
+            file_path = os.path.join("./database", file_name)
+            if os.path.isfile(file_path):
+                with open(file_path, "rb") as file:
+                    self.put(file_name, Table(pickle.load(file)))
+        return True
+    def save(self):
+        if not os.path.exists("./database"):
+            os.makedirs("./database")
+        for name, data in self.getData().items():
+            with open(f"./database/{name}", "wb") as file:
+                pickle.dump(data.getData(), file)

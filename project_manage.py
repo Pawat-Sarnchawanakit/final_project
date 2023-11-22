@@ -15,6 +15,12 @@ class ManageApp:
 
     def __init__(self):
         self.main_database = Database()
+        if self.main_database.load():
+            self.people_table = self.main_database.get("people")
+            self.login_table = self.main_database.get("login")
+            self.projectsTable = self.main_database.get("projects")
+            self.documentsTable = self.main_database.get("documents")
+            return
         self.people_table = self.main_database.add_table("people")
         self.people_table.fromCsv("ID", CsvFile("./persons.csv"))
         self.login_table = self.main_database.add_table("login")
@@ -235,7 +241,7 @@ class ManageApp:
     def getUniqueProjectId(self):
         while True:
             id = secrets.token_hex(16)
-            if self.projectsTable.get(id) is not None:
+            if self.projectsTable.get(id) is None:
                 return id
 
     def manageProjectPanel(self, data, proj):
@@ -243,11 +249,13 @@ class ManageApp:
             "What do you want to do?\n" \
             "0. Go back\n" \
             "1. Edit name\n" \
-            "2. Edit descriptionn" \
+            "2. Edit description\n" \
             "3. Invite member\n" \
             "4. Request for advisor\n" \
             "5. Submit report\n\nChoose: " \
             ), '0'):
+            if inp == '0':
+                break;
             if inp == '1':
                 proj["name"] = input("Enter new name: ")
                 continue
@@ -381,7 +389,8 @@ class ManageApp:
             "0. Exit\n" \
             "1. View messages\n" \
             "2. Accept project invitation\n" \
-            "3. View personal projects\n\nChoose: " \
+            "3. View personal projects\n" \
+            "4. Become a lead\n\nChoose: " \
             ), '0'):
             if cmd == '1':
                 self.requests_panel(data)
@@ -422,9 +431,18 @@ class ManageApp:
                     )
                     idx += 1
                 continue
-
+            if cmd == '4':
+                data["requests"] = None;
+                loginTab = self.login_table.get(f"{data['first']}.{data['last'][0]}")
+                loginTab["role"] = Role.Lead
+                self.leadPanel(data);
+                break;
+    def save(self):
+        self.main_database.save();
     def run(self):
         while True:
+            if input("Type exit to `exit`, type `login` to login.\n>") == "exit":
+                break;
             info = self.login()
             if info is None:
                 print("Invalid credentials, please try again.")
@@ -433,6 +451,6 @@ class ManageApp:
                 self.memberPanel, self.leadPanel, self.facultyPanel,
                 self.facultyPanel, self.admin_panel
             ][info["role"]](self.people_table.get(info["person_id"]))
+        return self;
 
-
-ManageApp().run()
+ManageApp().run().save();
