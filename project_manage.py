@@ -39,7 +39,8 @@ class ManageApp:
             })
         self.projectsTable = self.main_database.add_table("projects")
         self.documentsTable = self.main_database.add_table("documents")
-
+    def get_login_from_data(self, data):
+        return self.login_table.get(f"{data['first']}.{data['last'][0]}")
     def login(self):
         username = input("Please login\nUsername: ")
         password = input("Password: ")
@@ -57,345 +58,13 @@ class ManageApp:
             print("Invalid credentials, please try again.")
             return
         [
-            self.memberPanel, self.leadPanel, self.facultyPanel,
-            self.facultyPanel, self.admin_panel
-        ][info["role"]](self.people_table.get(info["id"]))
-    def admin_panel(self, _=None):
-        AdminPanel(self, None, None).show();
-    
-    def send_msg(self, data, target_id):
-        targetData = self.people_table.get(target_id)
-        reqs = targetData.get("requests")
-        if reqs is None:
-            reqs = []
-            targetData["requests"] = reqs
-        reqs.append({
-            "title": input("Enter title: "),
-            "content": input("Enter message: "),
-            "sender": {
-                "name": f"{data['first']} {data['last']}",
-                "id": data["ID"]
-            }
-        })
-
-    def requestPanel(self, data, req):
-        print(f"Title: {req['title']}\n\n{req['content']}")
-        for cmd in iter(
-                lambda: input("0. Go back\n"
-                              "1. Reply\n"
-                              "2. Reply and delete\n"
-                              "3. Delete\nChoose: "), "0"):
-            if cmd == '1':
-                self.send_msg(data, req['sender']['id'])
-                continue
-            if cmd == '2':
-                self.send_msg(data, req['sender']['id'])
-                return True
-                continue
-            if cmd == '3':
-                return True
-
-    def requests_panel(self, data):
-        reqs = data.get("requests", [])
-        while True:
-            if not reqs:
-                print("There are no requests at the moment.")
-                return
-            print("List of requests: ")
-            idx = 0
-            for req in reqs:
-                print(f"{idx}. {req['title']} - {req['sender']['name']}")
-                idx += 1
-            cmd = input(
-                "Choose a request you want to view, type \"exit\" to exit.\nRequest: "
-            )
-            if cmd == "exit":
-                break
-            try:
-                idx = int(cmd)
-                if idx >= len(reqs):
-                    print("Index out of bounds.")
-                    continue
-                if self.requestPanel(data, req):
-                    reqs[idx] = reqs[::-1][0]
-                    reqs.pop()
-            except:
-                pass
-
-    def allProjectsPanel(self, data):
-        for cmd in iter(lambda: input(
-            "What do you want to do?\n" \
-            "0. Go back\n" \
-            "1. View all projects\n" \
-            "2. Be an advisor for a project\n" \
-            "3. Approve a project\n" \
-            "4. View project info\n\nChoose: " \
-            ), '0'):
-            if cmd == '1':
-                items = self.projectsTable.getData().items()
-                if not items:
-                    print("There are no projects.")
-                    continue
-                for i, v in items:
-                    print(i, v)
-                continue
-            if cmd == '2':
-                project = self.projectsTable.get(input("Enter project id: "))
-                if project is None:
-                    print("Invalid project id.")
-                    continue
-                curAdvisor = project["advisor"]
-                if curAdvisor is not None and input(
-                    "There is already an advisor for this project.\n" \
-                    "Do you want to overwrite this? (y/n) "
-                    ) != 'y':
-                    continue
-                if sha256(proj["secret"] + "ADV" +
-                          data["ID"]).hexdigest()[0:5] != input(
-                              "Enter token: "):
-                    print("Invalid token.")
-                    continue
-                curAdvisor = {
-                    "name": f"{data['first']} {data['last']}",
-                    "id": data["ID"]
-                }
-                project["advisor"] = curAdvisor
-                continue
-            if cmd == '3':
-                project = self.projectsTable.get(input("Enter project id: "))
-                if project is None:
-                    print("Invalid project id.")
-                    continue
-                if sha256(proj["secret"] + "APR" +
-                          data["ID"]).hexdigest()[0:5] != input(
-                              "Enter token: "):
-                    print("Invalid token.")
-                    continue
-                project["approved"] = True
-            if cmd == '4':
-                project = self.projectsTable.get(input("Enter project id: "))
-                if project is None:
-                    print("Invalid project id.")
-                    continue
-                print(project)
-
-    def facultyPanel(self, data):
-        for cmd in iter(lambda: input(
-            "What do you want to do?\n" \
-            "0. Exit\n" \
-            "1. View requests to be a supervisor\n" \
-            "2. View projects\n\nChoose: " \
-            ), '0'):
-            if cmd == '1':
-                self.requests_panel(data)
-                continue
-            if cmd == '2':
-                self.allProjectsPanel(data)
-                continue
-
-    def getUniqueProjectId(self):
-        while True:
-            id = secrets.token_hex(16)
-            if self.projectsTable.get(id) is None:
-                return id
-
-    def manageProjectPanel(self, data, proj):
-        for inp in iter(lambda: input(
-            "What do you want to do?\n" \
-            "0. Go back\n" \
-            "1. Edit name\n" \
-            "2. Edit description\n" \
-            "3. Invite member\n" \
-            "4. Request for advisor\n" \
-            "5. Submit report\n\nChoose: " \
-            ), '0'):
-            if inp == '0':
-                break;
-            if inp == '1':
-                proj["name"] = input("Enter new name: ")
-                continue
-            if inp == '2':
-                proj["desc"] = input("Enter new description: ")
-                continue
-            if inp in {'3', '4'}:
-                nameOrId = input("Enter target username or id: ")
-                tarData = self.people_table.get(nameOrId)
-                if tarData is None:
-                    tarLoginData = self.login_table.get(nameOrId)
-                    if tarLoginData is None:
-                        print("Invalid username or id.")
-                        continue
-                    tarData = self.people_table.get(tarLoginData["id"])
-                target_id = tarData["ID"]
-                token = sha256(proj["secret"] + {
-                    '3': "INV",
-                    '4': "ADV"
-                }[inp] + target_id).hexdigest()[0:5]
-                print(
-                    f"The token has been generated: {token}\n"
-                    "Do not forget to include this in your request!"
-                )
-                self.send_msg(data, target_id)
-                continue
-            if inp == '5':
-                advisor = proj.get("advisor")
-                if advisor is None:
-                    print("You don't have an advisor.")
-                    continue
-                proj["report"] = input("Enter report: ")
-                token = sha256(proj["secret"] + "APR" +
-                               target_id).hexdigest()[0:5]
-                targetData = self.people_table.get(advisor["id"])
-                reqs = targetData.get("requests")
-                if reqs is None:
-                    reqs = []
-                    targetData["requests"] = reqs
-                reqs.append({
-                    "title":
-                    f"Request for project approval for {proj['name']} {proj['id']}",
-                    "content": f"Token is {token}",
-                    "sender": {
-                        "name": f"{data['first']} {data['last']}",
-                        "id": data["ID"]
-                    }
-                })
-                continue
-
-    def leadPanel(self, data):
-        for cmd in iter(lambda: input(
-            "What do you want to do?\n" \
-            "0. Exit\n" \
-            "1. Create a project\n" \
-            "2. View all available members\n" \
-            "3. Send Message\n" \
-            "4. View personal projects\n\nChoose: " \
-            ), '0'):
-            if cmd == '1':
-                projs = data.get("projects")
-                if projs is None:
-                    projs = []
-                    data["projects"] = projs
-                projId = self.getUniqueProjectId()
-                newProj = {
-                    "name":
-                    input("Enter project name: "),
-                    "desc":
-                    input("Enter description: "),
-                    "id":
-                    projId,
-                    "secret":
-                    secrets.token_hex(16),
-                    "members": [{
-                        "name": f"{data['first']} {data['last']}",
-                        "id": data['ID']
-                    }]
-                }
-                projs.append(newProj)
-                continue
-            if cmd == '2':
-                for v in self.login_table.getData().values():
-                    if v["role"] != Role.Member:
-                        continue
-                    print(v["username"], v["id"])
-                continue
-            if cmd == '3':
-                self.send_msg(data, input("Enter target id: "))
-                continue
-            if cmd == '4':
-                projs = data.get("projects")
-                if projs is None:
-                    print("You dont have any projects.")
-                    continue
-                while True:
-                    idx = 0
-                    for proj in projs:
-                        print(
-                            f"=====[Project {idx}]=====\n" \
-                            f"Project Name: {proj['name']}\n" \
-                            f"Project Description: {proj['desc']}\n" \
-                            f"Project Id: {proj['id']}\n" \
-                            f"Project Advisor: {proj.get('advisor')}\n"
-                            f"Project Leader: {proj['members'][0]}\n"
-                            f"Project Members: {proj['members'][1:]}\n"
-                            f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
-                        )
-                        idx += 1
-                    inp = input("0. Go back\n"
-                                "1. Manage project\n"
-                                "What do you want to do? ")
-                    if inp == '0':
-                        break
-                    if inp == '1':
-                        selProj = None
-                        try:
-                            curIdx = int(input("Project index: "))
-                            selProj = projs[curIdx]
-                        except:
-                            print("Invalid index")
-                            continue
-                        self.manageProjectPanel(data, selProj)
-                        selProj["name"] = input("New name: ")
-                        continue
-                continue
-
-    def memberPanel(self, data):
-        for cmd in iter(lambda: input(
-            "What do you want to do?\n" \
-            "0. Exit\n" \
-            "1. View messages\n" \
-            "2. Accept project invitation\n" \
-            "3. View personal projects\n" \
-            "4. Become a lead\n\nChoose: " \
-            ), '0'):
-            if cmd == '1':
-                self.requests_panel(data)
-                continue
-            if cmd == '2':
-                projId = input("Enter project id: ")
-                proj = self.projectsTable.get(projId)
-                if proj is None:
-                    print("Invalid project id.")
-                    continue
-                if sha256(proj["secret"] + "INV" +
-                          data["ID"]).hexdigest()[0:5] != input(
-                              "Enter token: "):
-                    print("Invalid token.")
-                    continue
-                projs = data.get("projects")
-                if projs is None:
-                    projs = []
-                    data["projects"] = projs
-                projs.append(proj)
-                continue
-            if cmd == '3':
-                projs = data.get("projects")
-                if projs is None:
-                    print("You didn't join any projects.")
-                    continue
-                idx = 0
-                for proj in projs:
-                    print(
-                        f"=====[Project {idx}]=====\n" \
-                        f"Project Name: {proj['name']}\n" \
-                        f"Project Description: {proj['desc']}\n" \
-                        f"Project Id: {proj['id']}\n" \
-                        f"Project Advisor: {proj.get('advisor')}\n"
-                        f"Project Leader: {proj['members'][0]}\n"
-                        f"Project Members: {proj['members'][1:]}\n"
-                        f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
-                    )
-                    idx += 1
-                continue
-            if cmd == '4':
-                data["requests"] = None;
-                loginTab = self.login_table.get(f"{data['first']}.{data['last'][0]}")
-                loginTab["role"] = Role.Lead
-                self.leadPanel(data);
-                break;
+            MemberPanel, LeadPanel, lambda x,y: None,
+            lambda x,y: None, AdminPanel
+        ][info["role"]](self, self.people_table.get(info["id"]), info).show();
     def save(self):
         self.main_database.save();
     def run(self):
-        main_panel = Panel({
+        Panel({
             'exit': ("Type `exit` to exit", False),
             'login': ("Type `login` to login", self.login_prompt)
         }).show();
@@ -406,36 +75,265 @@ class Panel:
     def show(self):
         while True:
             print(self.__header)
-            for key, action in self.__actions.items():
+            for action in self.__actions.values():
                 print(f"{action[0]}")
             inp = input(self.__footer)
             action_info = self.__actions.get(inp)
-            if action_info == None:
+            if action_info is None:
                 print("Invalid choice.")
                 continue;
-            if action_info[1] == False:
+            if not action_info[1]:
                 break;
             action_info[1]();
-# From Todo: (accept invitation directly)
-class Member:
-    def __init__(self, app, data, loginData):
-        self.app, self.data, self.loginData = app, data, loginData;
-    def show(self):
-        main_panel = Panel({
-            '1': ("1. Exit", False),
-            '2': ("2. View invitations", self.view_invitations),
-            '3': ("3. View joined projects", self.view_joined_projects),
-            '4': ("4. Become a lead", self.become_lead),
-        }).show();
-    def become_lead(self):
-        self.data["invitations"] = None;
-        self.loginData["role"] = Role.Lead
-        print("You've become a lead.\nLogout and log back in to access more features.")
-    def view_joined_projects(self):
-        projs = self.data.get("projects")
-        if projs is None:
-            print("You didn't join any projects.")
+
+class ProjectView:
+    def __init__(self, project):
+        self.project = project;
+    def getInfoString(self):
+        return \
+            f"Project Name: {self.project['name']}\n" \
+            f"Project Description: {self.project['desc']}\n" \
+            f"Project Id: {self.project['id']}\n" \
+            f"Project Advisor: {self.project.get('advisor')}\n" \
+            f"Project Leader: {self.project['members'][0]}\n" \
+            f"Project Members: {self.project['members'][1:]}\n" \
+            f"Approved: {'yes' if self.project.get('approved') else 'no'}\n"
+    @property
+    def advisor_pending(self):
+        return self.project["advisor"] == "pending"
+    @advisor_pending.setter
+    def advisor_pending(self, new_status):
+        if new_status:
+            self.project["advisor"] = "pending"
             return
+        self.project["advisor"] = None
+        return
+    @property
+    def advisor_id(self):
+        return self.project["advisor"]
+    @advisor_id.setter
+    def advisor_id(self, new_advisor_id):
+        self.project["advisor"] = new_advisor_id
+    @property
+    def name(self):
+        return self.project["name"]
+    @name.setter
+    def name(self, new_name):
+        self.project["name"] = new_name
+    @property
+    def desc(self):
+        return self.project["desc"]
+    @desc.setter
+    def desc(self, new_desc):
+        self.project["desc"] = new_desc
+    @property
+    def approved(self):
+        return self.project["approved"]
+    @approved.setter
+    def approved(self, new_approved):
+        self.project["approved"] = new_approved
+    @property
+    def lead_id(self):
+        return self.project["members"][0]
+    @lead_id.setter
+    def lead_id(self, new_lead_id):
+        self.project["members"][0] = new_lead_id
+    @property
+    def member_ids(self):
+        return self.project["members"][1::]
+    @property
+    def id(self):
+        return self.project["id"]
+
+class ProjectPanel:
+    def __init__(self, app, project_view):
+        self.app, self.project_view = app, project_view;
+    def manage(self, wheel_mode):
+        panel_data = {
+            '1': ("1. Exit", False),
+            '2': ("2. Change name", self.change_name),
+            '3': ("3. Change description", self.change_desc)
+        };
+        if wheel_mode:
+            panel_data.update({
+                '4': ("4. Delete", self.proj_delete),
+                '5': ("5. Invite members", self.invite_member),
+                '6': ("6. Request for advisor", self.request_for_advisor),
+            })
+            if self.project_view.approved:
+                panel_data.update({'7': ("7. Submit for evaluation", self.submit)})
+        Panel(panel_data).show();
+    def submit(self):
+        pass
+    def proj_delete(self):
+        self.project_view.delete();
+    def request_for_advisor(self):
+        if self.project_view.advisor_pending:
+            print("Please wait for the faculty you requested to either accept or reject your request before sending a new request.")
+            return
+        faculty_data = self.app.people_table.get(input("Enter faculty id: "))
+        if faculty_data is None:
+            print("Invalid faculty id.")
+            return
+        login_data = self.app.get_login_from_data(faculty_data);
+        if login_data is None:
+            print("Something went wrong, please contact an admin.")
+            return
+        faculty_view = FacultyView(faculty_data, login_data)
+        if faculty_view.role != Role.Faculty:
+            print("That person is not a faculty.")
+            return
+        reqs = faculty_view.requests;
+        reqs.append(self.project_view.id)
+        print(f"Successfully requested {faculty_view.name}")
+
+    def invite_member(self):
+        member_data = self.app.people_table.get(input("Enter member id: "))
+        if member_data is None:
+            print("Invalid member id.")
+            return
+        login_data = self.app.get_login_from_data(member_data);
+        if login_data is None:
+            print("Something went wrong, please contact an admin.")
+            return
+        member_view = MemberView(member_data, login_data)
+        if member_view.role != Role.Member:
+            print("That person is not a member.")
+            return
+        invitations = member_view.invitations;
+        invitations.append(self.project_view.id)
+        print(f"Successfully invited {member_view.name}")
+    def change_name(self):
+        self.project_view.name = input("Enter new project name: ")
+        print("The project name has been changed to", self.project_view.name)
+    def change_desc(self):
+        self.project_view.desc = input("Enter new project description: ")
+        print("The project description has been changed to: ", self.project_view.name, sep='\n')
+
+class UserView:
+    def __init__(self, user_data, login_data):
+        self.user_data, self.login_data = user_data, login_data
+    @property
+    def name(self):
+        return f"{self.user_data['first']} {self.user_data['last']}"
+    @property
+    def role(self):
+        return self.login_data["role"]
+    @property
+    def id(self):
+        return self.user_data["ID"]
+
+class MessageView:
+    def __init__(self, data):
+        self.data = data;
+    @property
+    def message_type(self):
+        return self.data["type"]
+    @property
+    def sender_id(self):
+        return self.data["author"]
+    def get_title(self, app: ManageApp):
+        author = app.people_table.get(self.data['author'])
+        if author is None:
+            author = "Unknown"
+        else:
+            author = f"{author['first']} {author['last']}"
+        return {
+            "inva": f"{self.data['author']} has accepted your project {self.data['project']} invitation."
+        }[self.data["type"]]
+
+
+# class FacultyView(UserView):
+#     def __init__(self, ):
+#         self. = 
+
+class MemberView(UserView):
+    @property
+    def invitations(self):
+        reqs = self.user_data.get("invs", [])
+        if reqs is None:
+            reqs = [];
+            self.user_data["invs"] = reqs;
+        return reqs;
+    @property
+    def project_ids(self):
+        projs = self.user_data.get("projs", [])
+        if projs is None:
+            projs = [];
+            self.user_data["projs"] = projs;
+        return projs;
+    def become(self, role):
+        self.user_data["projs"] = None;
+        self.user_data["invitations"] = None;
+        self.login_data["role"] = role;
+
+class FacultyView(UserView):
+    @property
+    def requests(self):
+        reqs = self.user_data.get("reqs", [])
+        if reqs is None:
+            reqs = [];
+            self.user_data["reqs"] = reqs;
+        return reqs;
+    @property
+    def project_ids(self):
+        projs = self.user_data.get("projs", [])
+        if projs is None:
+            projs = [];
+            self.user_data["projs"] = projs;
+        return projs;
+
+class FacultyPanel:
+    def __init__(self, app, user_data, login_data):
+        self.app, self.faculty_view = app, FacultyView(user_data, login_data);
+
+class LeadView(MemberView):
+    @property
+    def messages(self):
+        msgs = self.user_data.get("msgs", [])
+        if msgs is None:
+            msgs = [];
+            self.user_data["msgs"] = msgs;
+        return msgs;
+
+class LeadPanel:
+    def __init__(self, app, user_data, login_data):
+        self.app, self.lead_view = app, LeadView(user_data, login_data);
+    def show(self):
+        Panel({
+            '1': ("1. Logout", False),
+            '2': ("2. View responses", self.view_responses),
+            '3': ("3. View projects", self.view_projects),
+            '4': ("4. Become a member", self.become_member),
+        }).show();
+    def become_member(self):
+        self.lead_view.become(Role.Member)
+        print("You've become a member.\nLogout and log back in to access member features.")
+    def view_responses(self):
+        msgs = self.lead_view.messages;
+        if not msgs:
+            print("You do not have any responses.")
+            return
+        idx = 0
+        for msg in msgs:
+            msg_view = MessageView(msg)
+            print(f"{idx}. {msg_view.get_title(self.app)}")
+            idx += 1;
+        try:
+            Panel({
+                '1': ("1. Go back", False),
+                '2': ("2. Delete a message", lambda: self.msg_delete(msgs, int(input("Enter an index: ")))),
+                '3': ("3. Clear all messages", lambda: msgs.clear()),
+            }).show();
+        except:
+            print("An error occurred.")
+    def msg_delete(self, msgs, idx):
+        msgs[idx] = msgs[-1]
+        msgs.pop()
+    def view_projects(self):
+        projs = self.lead_view.project_ids;
+        if not projs:
+            print("You didn't create any projects.")
         idx = 0
         for projId in projs:
             proj = self.app.projectsTable.get(projId)
@@ -450,16 +348,68 @@ class Member:
                 f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
             )
             idx += 1
+        cmd = input("Type `exit` to go back.\nType `create` to create a project\nType an index to manage project.\nType: ")
+        if cmd == "exit":
+            return;
+        if cmd == "create":
+            proj_view = ProjectView({
+                "id": self.app.getUniqueProjectId(),
+                "name": input("Enter project name: "),
+                "desc": input("Enter project description: "),
+                "members": [self.lead_view.id],
+                "approved": False
+            })
+            self.app.projectsTable.put(proj_view.id, proj_view.project)
+            ProjectPanel(self.app, proj_view).manage(True)
+        try:
+            proj_view = ProjectView(self.app.projectsTable.get(projs[int(cmd)]))
+            ProjectPanel(self.app, proj_view).manage(True)
+        except:
+            return;
+    
+class MemberPanel:
+    def __init__(self, app, data, loginData):
+        self.app, self.member_view = app, MemberView(data, loginData);
+    def show(self):
+        Panel({
+            '1': ("1. Logout", False),
+            '2': ("2. View invitations", self.view_invitations),
+            '3': ("3. Manage joined projects", self.view_joined_projects),
+            '4': ("4. Become a lead", self.become_lead),
+        }).show();
+    def become_lead(self):
+        self.member_view.become(Role.Lead);
+        print("You've become a lead.\nLogout and log back in to access more features.")
+    def view_joined_projects(self):
+        proj_ids = self.member_view.project_ids;
+        if not proj_ids:
+            print("You didn't join any projects.")
+            return
+        idx = 0;
+        for projId in proj_ids:
+            proj_view = ProjectView(self.app.projectsTable.get(projId))
+            print(f"=====[Project {idx}]=====\n")
+            print(proj_view.getInfoString())
+            idx += 1
     def view_invitations(self):
-        reqs = self.data.get("invitations", [])
+        invs = self.member_view.invitations;
+        if not invs:
+            print("There are no invitations at the moment.")
+            return
         while True:
-            if not reqs:
-                print("There are no invitations at the moment.")
-                return
             print("List of invitations: ")
             idx = 0
-            for req in reqs:
-                print(f"{idx}. {req['sender']} invited you to join project {req['project_name']} ({req['project_id']})")
+            for req in invs:
+                proj = self.app.projectsTable.get(req)
+                if proj is None:
+                    continue
+                proj = ProjectView(proj)
+                lead = self.app.people_table.get(proj.lead_id)
+                if lead is None:
+                    lead = "Unknown"
+                else:
+                    lead = f"{lead['first']} {lead['last']}"
+                print(f"{idx}. {lead} invited you to join project {proj.name} ({proj.id})")
                 idx += 1
             cmd = input(
                 "Choose a request you want to accept, type \"exit\" to go back.\nRequest: "
@@ -468,23 +418,20 @@ class Member:
                 break
             try:
                 idx = int(cmd)
-                if idx >= len(reqs):
+                if idx >= len(invs):
                     print("Index out of bounds.")
                     continue
-                projs = self.data.get("projects")
-                if projs is None:
-                    projs = []
-                    self.data["projects"] = projs
-                projs.append(reqs[idx]["project_id"])
-                reqs[idx] = reqs[::-1][0]
-                reqs.pop()
+                projs = self.member_view.project_ids;
+                projs.append(invs[idx])
+                invs[idx] = invs[-1];
+                invs.pop()
             except:
                 pass
 class AdminPanel:
     def __init__(self, app, data, loginData):
         self.data, self.loginData, self.cur, self.cur_str, self.app = data, loginData, app.main_database, '/', app;
     def show(self):
-        main_panel = Panel({
+        Panel({
             'exit': ("Type `exit` to exit", False),
             'ls': ("Type `ls` to list everything under the current table.", lambda: print(self.cur.getData())),
             'cd': ("Type `cd` to go down to a specific table.", self.cd),

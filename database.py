@@ -1,12 +1,12 @@
-import io;
-import os;
-import pickle;
+import io
+import os
+import pickle
+import csv
 class CsvFile:
     def __init__(self, path):
         self.path = path;
     def read(self, callback):
-        import csv
-        with open(self.path) as file:
+        with open(self.path, "rb") as file:
             rows = csv.DictReader(file)
             for row in rows:
                 callback(dict(row));
