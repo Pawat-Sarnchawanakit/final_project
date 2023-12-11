@@ -6,7 +6,7 @@ class CsvFile:
     def __init__(self, path):
         self.path = path;
     def read(self, callback):
-        with open(self.path, "rb") as file:
+        with open(self.path, "r") as file:
             rows = csv.DictReader(file)
             for row in rows:
                 callback(dict(row));
