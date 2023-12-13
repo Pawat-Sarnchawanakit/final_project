@@ -39,8 +39,27 @@ class ManageApp:
             })
         self.projectsTable = self.main_database.add_table("projects")
         self.documentsTable = self.main_database.add_table("documents")
+    def get_unique_project_id(self):
+        while True:
+            id = secrets.token_hex(16)
+            if self.projectsTable.get(id) is None:
+                return id
+    def get_name_from_id(self, id):
+        name = self.people_table.get(id)
+        if name is not None:
+            return f"{name['first']} {name['last']}"
+        return "Unknown"
     def get_login_from_data(self, data):
         return self.login_table.get(f"{data['first']}.{data['last'][0]}")
+    def find_user(self, username_or_id):
+        user_data = self.people_table.get(username_or_id);
+        if user_data is not None:
+            return user_data;
+        login_data = self.login_table.get(username_or_id)
+        if login_data is not None:
+            return self.people_table.get(login_data["id"])
+        return None
+        
     def login(self):
         username = input("Please login\nUsername: ")
         password = input("Password: ")
@@ -89,18 +108,25 @@ class Panel:
 class ProjectView:
     def __init__(self, project):
         self.project = project
-    def getInfoString(self):
+    def get_info_string(self, app):
+        proj = self.project
+        advisor = proj.get('advisor');
+        if advisor is not None:
+            advisor = f"{app.get_name_from_id(advisor)} ({advisor})"
+        member_list = ','.join([f"{app.get_name_from_id(member)} ({member})" for member in proj['members'][1:]])
+        if not member_list:
+            member_list = "None"
         return \
-            f"Project Name: {self.project['name']}\n" \
-            f"Project Description: {self.project['desc']}\n" \
-            f"Project Id: {self.project['id']}\n" \
-            f"Project Advisor: {self.project.get('advisor')}\n" \
-            f"Project Leader: {self.project['members'][0]}\n" \
-            f"Project Members: {self.project['members'][1:]}\n" \
-            f"Approved: {'yes' if self.project.get('approved') else 'no'}\n"
+            f"Name: {proj['name']}\n" \
+            f"Description: {proj['desc']}\n" \
+            f"Id: {proj['id']}\n" \
+            f"Advisor: {advisor}\n" \
+            f"Leader: {app.get_name_from_id(proj['members'][0])} ({proj['members'][0]})\n" \
+            f"Members: {member_list}\n" \
+            f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
     @property
     def advisor_pending(self):
-        return self.project["advisor"] == "pending"
+        return self.project.get("advisor") == "pending"
     @advisor_pending.setter
     def advisor_pending(self, new_status):
         if new_status:
@@ -110,7 +136,7 @@ class ProjectView:
         return
     @property
     def advisor_id(self):
-        return self.project["advisor"]
+        return self.project.get("advisor")
     @advisor_id.setter
     def advisor_id(self, new_advisor_id):
         self.project["advisor"] = new_advisor_id
@@ -147,6 +173,8 @@ class ProjectView:
     @property
     def member_ids(self):
         return self.project["members"][1::]
+    def add_member(self, new_member):
+        self.project["members"].append(new_member)
     @property
     def id(self):
         return self.project["id"]
@@ -164,11 +192,22 @@ class ProjectPanel:
             panel_data.update({
                 '4': ("4. Delete", self.proj_delete),
                 '5': ("5. Invite members", self.invite_member),
-                '6': ("6. Request for advisor", self.request_for_advisor),
             })
-            if self.project_view.approved:
-                panel_data.update({'7': ("7. Submit for evaluation", self.submit)})
+            if self.project_view.advisor_id is None:
+                panel_data.update({'6': ("6. Request for advisor", self.request_for_advisor)})
+            elif not self.project_view.approved:
+                panel_data.update({'6': ("6. Submit for approval", self.submit_approv)})
+            elif not self.project_view.evaluated:
+                panel_data.update({'6': ("6. Submit for evaluation", self.submit)})
         Panel(panel_data).show()
+    def submit_approv(self):
+        faculty_data = self.app.people_table.get(self.project_view.advisor_id)
+        if faculty_data is None:
+            print("An internal error occurred.")
+            return
+        faculty_view = FacultyView(faculty_data, None)
+        faculty_view.approval_requests.append(self.project_view.id)
+        print("Succesfully sent approval request to your advisor.")
     def submit(self):
         pass
     def proj_delete(self):
@@ -177,9 +216,9 @@ class ProjectPanel:
         if self.project_view.advisor_pending:
             print("Please wait for the faculty you requested to either accept or reject your request before sending a new request.")
             return
-        faculty_data = self.app.people_table.get(input("Enter faculty id: "))
+        faculty_data = self.app.find_user(input("Enter faculty id/username: "))
         if faculty_data is None:
-            print("Invalid faculty id.")
+            print("Invalid faculty id/username.")
             return
         login_data = self.app.get_login_from_data(faculty_data)
         if login_data is None:
@@ -194,7 +233,7 @@ class ProjectPanel:
         print(f"Successfully requested {faculty_view.name}")
 
     def invite_member(self):
-        member_data = self.app.people_table.get(input("Enter member id: "))
+        member_data = self.app.find_user(input("Enter member id/username: "))
         if member_data is None:
             print("Invalid member id.")
             return
@@ -225,6 +264,11 @@ class UserView:
     @property
     def role(self):
         return self.login_data["role"]
+    @role.setter
+    def role(self, new_role):
+        if not isinstance(new_role, int):
+            raise TypeError
+        self.login_data["role"] = new_role
     @property
     def id(self):
         return self.user_data["ID"]
@@ -253,14 +297,14 @@ class MessageView:
 class MemberView(UserView):
     @property
     def invitations(self):
-        reqs = self.user_data.get("invs", [])
+        reqs = self.user_data.get("invs")
         if reqs is None:
             reqs = []
             self.user_data["invs"] = reqs
         return reqs
     @property
     def project_ids(self):
-        projs = self.user_data.get("projs", [])
+        projs = self.user_data.get("projs")
         if projs is None:
             projs = []
             self.user_data["projs"] = projs
@@ -273,28 +317,28 @@ class MemberView(UserView):
 class FacultyView(UserView):
     @property
     def advisor_requests(self):
-        reqs = self.user_data.get("adv_reqs", [])
+        reqs = self.user_data.get("adv_reqs")
         if reqs is None:
             reqs = []
             self.user_data["adv_reqs"] = reqs
         return reqs
     @property
     def project_ids(self):
-        projs = self.user_data.get("projs", [])
+        projs = self.user_data.get("projs")
         if projs is None:
             projs = []
             self.user_data["projs"] = projs
         return projs
     @property
     def approval_requests(self):
-        reqs = self.user_data.get("apr_reqs", [])
+        reqs = self.user_data.get("apr_reqs")
         if reqs is None:
             reqs = []
             self.user_data["apr_reqs"] = reqs
         return reqs
     @property
     def evaluating_projects(self):
-        projs = self.user_data.get("eval_projs", [])
+        projs = self.user_data.get("eval_projs")
         if projs is None:
             projs = []
             self.user_data["eval_projs"] = projs
@@ -352,7 +396,7 @@ class FacultyPanel:
         except:
             print("Bad input")
     def view_projs_aprv(self):
-        reqs = self.faculty_view.advisor_requests
+        reqs = self.faculty_view.approval_requests
         if not reqs:
             print("You do not have any requests at the moment.")
             return
@@ -360,7 +404,7 @@ class FacultyPanel:
         for req in reqs:
             proj = self.app.projectsTable.get(req)
             if proj is None:
-                print("{idx}. Unknown invited you to be an advisor for [DELETED PROJECT]")
+                print("{idx}. Unknown wanted you to approve [DELETED PROJECT]")
                 idx += 1
                 continue
             proj = ProjectView(proj)
@@ -369,7 +413,7 @@ class FacultyPanel:
                 author = "Unknown"
             else:
                 author = f"{author['first']} {author['last']}"
-            print(f"{idx}. {author} invited you to be an advisor for project {proj.name} ({proj.id})")
+            print(f"{idx}. {author} wanted you to approve project {proj.name} ({proj.id})")
             idx += 1
         sel = input("\nSelect a request you want to deal with or type `exit` to go back.\nSelect: ")
         if sel == "exit":
@@ -377,7 +421,7 @@ class FacultyPanel:
         try:
             seli = int(sel)
             req = reqs[seli]
-            sel = input("Do you want to accept the request? (y/n) ")
+            sel = input("Do you want to approve? (y/n) ")
             if sel in {'y', 'n'}:
                 proj = self.app.projectsTable.get(req)
                 if proj is None:
@@ -385,7 +429,7 @@ class FacultyPanel:
                     return
                 proj = ProjectView(proj)
                 if sel == 'y':
-                    proj.advisor_id = self.faculty_view.id
+                    proj.approved = True
                 lead_data = self.app.people_table.get(proj.lead_id)
                 lead_view = LeadView(lead_data, None)
                 lead_view.invitations.append({
@@ -437,6 +481,8 @@ class FacultyPanel:
                     if self.faculty_view.role != Role.Advisor:
                         print("You've become an advisor, please logout and log back in to gain access to more features.")
                     self.faculty_view.role = Role.Advisor
+                else:
+                    proj.advisor_id = None
                 lead_data = self.app.people_table.get(proj.lead_id)
                 lead_view = LeadView(lead_data, None)
                 lead_view.invitations.append({
@@ -456,21 +502,12 @@ class FacultyPanel:
         idx = 0
         for projId in projs:
             proj = self.app.projectsTable.get(projId)
-            print(
-                f"=====[Project {idx}]=====\n" \
-                f"Project Name: {proj['name']}\n" \
-                f"Project Description: {proj['desc']}\n" \
-                f"Project Id: {proj['id']}\n" \
-                f"Project Advisor: {proj.get('advisor')}\n"
-                f"Project Leader: {proj['members'][0]}\n"
-                f"Project Members: {proj['members'][1:]}\n"
-                f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
-            )
+            print(f"=====[Project {idx}]=====\n{proj.get}")
             idx += 1
 class LeadView(MemberView):
     @property
     def messages(self):
-        msgs = self.user_data.get("msgs", [])
+        msgs = self.user_data.get("msgs")
         if msgs is None:
             msgs = []
             self.user_data["msgs"] = msgs
@@ -517,35 +554,31 @@ class LeadPanel:
         idx = 0
         for projId in projs:
             proj = self.app.projectsTable.get(projId)
-            print(
-                f"=====[Project {idx}]=====\n" \
-                f"Project Name: {proj['name']}\n" \
-                f"Project Description: {proj['desc']}\n" \
-                f"Project Id: {proj['id']}\n" \
-                f"Project Advisor: {proj.get('advisor')}\n"
-                f"Project Leader: {proj['members'][0]}\n"
-                f"Project Members: {proj['members'][1:]}\n"
-                f"Approved: {'yes' if proj.get('approved') else 'no'}\n"
-            )
+            if proj is not None:
+                print(
+                    f"=====[Project {idx}]=====\n{ProjectView(proj).get_info_string(self.app)}"
+                )
             idx += 1
         cmd = input("Type `exit` to go back.\nType `create` to create a project\nType an index to manage project.\nType: ")
         if cmd == "exit":
             return
         if cmd == "create":
             proj_view = ProjectView({
-                "id": self.app.getUniqueProjectId(),
+                "id": self.app.get_unique_project_id(),
                 "name": input("Enter project name: "),
                 "desc": input("Enter project description: "),
                 "members": [self.lead_view.id],
                 "approved": False
             })
             self.app.projectsTable.put(proj_view.id, proj_view.project)
+            self.lead_view.project_ids.append(proj_view.id)
             ProjectPanel(self.app, proj_view).manage(True)
-        try:
-            proj_view = ProjectView(self.app.projectsTable.get(projs[int(cmd)]))
-            ProjectPanel(self.app, proj_view).manage(True)
-        except:
             return
+        # try:
+        proj_view = ProjectView(self.app.projectsTable.get(projs[int(cmd)]))
+        ProjectPanel(self.app, proj_view).manage(True)
+        # except:
+        #     return
     
 class MemberPanel:
     def __init__(self, app, data, loginData):
@@ -568,8 +601,8 @@ class MemberPanel:
         idx = 0
         for projId in proj_ids:
             proj_view = ProjectView(self.app.projectsTable.get(projId))
-            print(f"=====[Project {idx}]=====\n")
-            print(proj_view.getInfoString())
+            print(f"=====[Project {idx}]=====")
+            print(proj_view.get_info_string(self.app))
             idx += 1
     def view_invitations(self):
         invs = self.member_view.invitations
@@ -592,7 +625,7 @@ class MemberPanel:
                 print(f"{idx}. {lead} invited you to join project {proj.name} ({proj.id})")
                 idx += 1
             cmd = input(
-                "Choose a request you want to accept, type \"exit\" to go back.\nRequest: "
+                "Choose a request you want to deal with, type \"exit\" to go back.\nRequest: "
             )
             if cmd == "exit":
                 break
@@ -601,8 +634,13 @@ class MemberPanel:
                 if idx >= len(invs):
                     print("Index out of bounds.")
                     continue
-                projs = self.member_view.project_ids
-                projs.append(invs[idx])
+                if input("Do you want to accept? (y/n) ") == 'y':
+                    projs = self.member_view.project_ids
+                    projs.append(invs[idx])
+                    proj = self.app.projectsTable.get(invs[idx])
+                    if proj is not None:
+                        proj = ProjectView(proj)
+                        proj.add_member(self.member_view.id)
                 invs[idx] = invs[-1]
                 invs.pop()
             except:
