@@ -1,3 +1,5 @@
+import builtins
+
 fakeInputs = [
     "login",
     "Lionel.M",
@@ -57,8 +59,37 @@ fakeInputs = [
     "1",
     "login",
     "Paulo.D",
-    "1312"
-
+    "1312",
+    "4",
+    "0",
+    "y",
+    "1",
+    "login",
+    "Lionel.M",
+    "2977",
+    "3",
+    "0",
+    "6",
+    "1",
+    "1",
+    "login",
+    "Cristiano.R",
+    "2255",
+    "assign",
+    "0",
+    "Arjen.R",
+    "exit",
+    "login",
+    "Arjen.R",
+    "6779",
+    "3",
+    "0",
+    "y",
+    "1",
+    "login",
+    "Lionel.M",
+    "2977",
+    "3"
 ];
 fakeInputIdx = 0
 realInput = input
@@ -71,7 +102,6 @@ def fakeInput(text):
     print(text + ret)
     fakeInputIdx += 1;
     return ret;
-import builtins
 setattr(builtins, 'input', fakeInput)
 
 import project_manage
