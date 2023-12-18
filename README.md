@@ -71,6 +71,30 @@ Type `exit` to exit
 Type `login` to login
 Choose: exit
 ```
+# Bugs
+Check issues.
+
+# Table
+|Role|Action|Method|Class|Progress
+-|-|-|-|-|
+Admin|ls|lambda|AdminPanel|100%
+Admin|cd|cd|AdminPanel|100%
+Admin|home|home|AdminPanel|100%
+Admin|set|on_set|AdminPanel|100%
+Admin|get|on_get|AdminPanel|100%
+Admin|delete|lambda|AdminPanel|100%
+Admin|assign|assign_eval|AdminPanel|100%
+Member|View invitations|view_invitations|MemberPanel|100%
+Member|Manage joined projects|view_joined_projects|MemberPanel|100%
+Member|Become Lead|become_lead|MemberPanel|100%
+Lead|View responses (to requests and invitations)|view_responses|LeadPanel|100%
+Lead|View Projects|view_projects|LeadPanel|100%
+Lead|Become Member|become_member|LeadPanel|100%
+Faculty and Advisor|View advisor requests|view_requests|FacultyPanel|100%
+Faculty and Advisor|View projects awaiting evaluation|view_eval|FacultyPanel|100%
+Advisor|View projects|view_projects|FacultyPanel|100%
+Advisor|View project approval requests|view_projs_aprv|FacultyPanel|100%
+
 
 <a id="database"></a>
 
