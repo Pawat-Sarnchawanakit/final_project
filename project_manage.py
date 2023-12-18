@@ -875,7 +875,8 @@ class FacultyPanel:
         idx = 0
         for proj_id in projs:
             proj = self.app.projects_table.get(proj_id)
-            print(f"=====[Project {idx}]=====\n{proj.get}")
+            if proj is not None:
+                print(f"=====[Project {idx}]=====\n{ProjectView(proj).get_info_string(self.app)}")
             idx += 1
 
 
